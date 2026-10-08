@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101411">
+  <title>RIGGED — The $100 experiment</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js" defer></script><script src="app.js" defer></script>
+</head>
+<body>
+  <header><a class="wordmark" href="./">RIGGED<span>↗</span></a><div class="tag">BTC / USDT · PAPER TRADING</div><a href="https://github.com/Sheekovic/Rigged" target="_blank" rel="noopener noreferrer">View the source ↗</a></header>
+  <main>
+    <section class="intro"><div><p class="eyebrow">ONE STRATEGY. EVERY TRADE. PUBLIC.</p><h1>From $100.<br><span>Let the numbers talk.</span></h1><p class="lede">Buy near the range low. Short near the high. Follow the rules, record the outcome, and keep the experiment running.</p></div><div class="experiment"><span class="dot"></span><span id="connection">SETUP PENDING</span><small id="updated">No recorded market data yet</small></div></section>
+    <div id="notice" class="notice" role="status">The dashboard is ready. Connect Supabase and start the worker to begin recording real market observations. No trades or returns have been invented.</div>
+    <section class="metrics" aria-label="Account performance">
+      <article class="metric primary"><p>PAPER EQUITY</p><h2 id="equity">$100.00</h2><span id="return">Starting capital · not started</span></article>
+      <article class="metric"><p>BTC / USDT</p><h2 id="price">—</h2><span>Binance USDⓈ-M futures · last recorded close</span></article>
+      <article class="metric"><p>WIN RATE</p><h2 id="win-rate">—</h2><span id="trade-count">0 closed trades</span></article>
+      <article class="metric"><p>MAX DRAWDOWN</p><h2 id="drawdown">—</h2><span>Based on recorded equity samples</span></article>
+    </section>
+    <section class="workspace"><article class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">THE EXPERIMENT</p><h2>Equity over time</h2></div><span class="pill">START · $100</span></div><div class="chart-wrap"><svg id="equity-chart" viewBox="0 0 900 300" role="img" aria-label="Equity chart awaiting recorded data"><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#c9f86a" stop-opacity=".2"/><stop offset="100%" stop-color="#c9f86a" stop-opacity="0"/></linearGradient></defs><g id="chart-lines"></g><path id="chart-fill" fill="url(#fill)"/><path id="chart-path" fill="none" stroke="#c9f86a" stroke-width="3" vector-effect="non-scaling-stroke"/></svg><div id="chart-empty">The first observation starts the chart.</div></div><div class="chart-footer"><span id="started">No run started</span><span id="chart-range">Recent recorded equity · USDT</span></div></article>
+    <aside class="panel"><p class="eyebrow">WHAT HAPPENS NEXT</p><h2 id="phase">Waiting for setup</h2><div class="range-row"><span>12-hour low</span><strong id="range-low">—</strong></div><div class="range-row"><span>12-hour high</span><strong id="range-high">—</strong></div><div class="range-bar"><i id="range-marker"></i></div><p id="position">No position open.</p><div class="position-detail" id="position-detail"></div><p class="muted" id="rules">Margin mode and observation window await confirmation.</p></aside></section>
+    <section class="panel ledger"><div class="panel-heading"><div><p class="eyebrow">NO HIDDEN LOSSES</p><h2>Trade ledger</h2></div><button id="export" type="button" disabled>Export CSV ↓</button></div><div class="table-wrap"><table><thead><tr><th>Closed / UTC</th><th>Side</th><th>Entry → exit</th><th>Margin</th><th>Net P&amp;L</th><th>Exit reason</th></tr></thead><tbody id="trades"><tr><td colspan="6" class="empty">No closed trades yet. Wins, losses, and simulated liquidations will all appear here.</td></tr></tbody></table></div><p class="muted" id="ledger-limit">Most recent 200 trades · export includes the displayed rows</p></section>
+    <section class="method"><div><p class="eyebrow">FIXED RULES, VISIBLE ASSUMPTIONS</p><h2>A test, with a paper trail.</h2></div><div><p>Initial capital <b>$100 USDT</b>. Margin allocation <b>10%</b>. Leverage <b>120×</b>. Profit target <b>+200% of initial margin</b>. Intended loss limit <b>−100%</b>.</p><p id="assumptions">The run has not started. Entry tolerance, range timing, margin mode, fees, and funding will be published with its configuration.</p><p>Simulation uses completed one-minute candles, not actual exchange fills. If a candle touches both profit and loss levels, the loss is counted first. Liquidation is an approximation, not Binance's exact margin engine. Results can support or contradict the strategy; they cannot guarantee future returns.</p></div></section>
+  </main><footer><span>RIGGED / An open experiment</span><span>Paper positions only · no exchange trading keys</span></footer>
+</body></html>

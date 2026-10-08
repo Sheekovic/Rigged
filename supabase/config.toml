@@ -1,0 +1,3 @@
+[functions.rigged-tick]
+verify_jwt = false
+# Requests are authenticated with a private Vault-generated scheduler token.
