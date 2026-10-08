@@ -85,7 +85,7 @@ function renderFib(state=window.RIGGED_STATE){
   $('fib-anchors').textContent=`${money(grid.start)} (${utc(grid.start_time)}) → ${money(grid.end)} (${utc(grid.end_time)})`;
   for(const level of grid.levels){const chip=document.createElement('span');chip.textContent=`${(level.ratio*100).toFixed(1)}% · ${money(level.price)}`;$('fib-levels').append(chip);}
  }
- $('fib-exits').textContent=position?`Open ${position.side} · entry ${money(position.entry)}${position.stop?` · stop ${money(position.stop)} · next target ${money(position.target)}`:''} · anchors held fixed`:'Entry: range extreme · exits: 25% at each of three Fib targets, initial stop until +100% net margin profit lock · one position at a time';
+ $('fib-exits').textContent=position?`Open ${position.side} · entry ${money(position.entry)}${position.stop?` · stop ${money(position.stop)} · next target ${money(position.target)}`:''}${position.profit_lock_price?` · net profit lock ${money(position.profit_lock_price)}`:''} · anchors held fixed`:'Entry: range extreme · exits: 25% at each of three Fib targets, initial stop until +100% net margin profit lock · one position at a time';
  chart.draw();
 }
 async function loadHistory(){
