@@ -23,6 +23,7 @@ allocation from the current balance. It sends **no actual trading orders**.
 | Take profit | +200% gross P&L / initial margin |
 | Intended stop | −100% gross P&L / initial margin |
 | Positions | One at a time; existing positions may carry into the next day |
+| Daily entry limit | At most 6 new positions per UTC day; no minimum forced |
 | Re-entry | Five-minute cooldown after closing |
 | Taker fees | 0.05% of notional on each fill; assumed, not account-tier verified |
 | Slippage | 0.01% adverse on each fill; assumed |
@@ -32,7 +33,8 @@ allocation from the current balance. It sends **no actual trading orders**.
 
 These numeric assumptions are public in
 [`engine.mjs`](supabase/functions/rigged-tick/engine.mjs). Each run stores its
-configuration, so an engine update does not silently change an existing run's rules.
+configuration. Explicit rule changes are applied through versioned migrations;
+an engine deployment alone does not silently change an existing run's configuration.
 Entry distance and cooldown are explicit simulation parameters that can be reviewed
 and adjusted through versioned changes.
 

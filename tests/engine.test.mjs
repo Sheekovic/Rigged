@@ -75,3 +75,36 @@ test('drawdown persists after recovery',()=>{
 test('overlapping entry zones do not choose an arbitrary direction',()=>{
   assert.equal(tick(ready({range:{low:100,high:100.05}}),bar(noon,100.02)).state.position,null);
 });
+test('an existing long blocks further entries and an opposite short signal',()=>{
+  let s=tick(ready({range:{low:100,high:100.2}}),bar(noon,100)).state;
+  const original=structuredClone(s.position);
+  for(let i=1;i<=10;i++) {
+    s=tick(s,bar(noon+i*60000,i%2?100:100.2)).state;
+    assert.deepEqual(s.position,original);assert.equal(s.entries_today,1);
+  }
+});
+test('a closing candle cannot also open another position',()=>{
+  const s=tick(ready(),bar(noon,100)).state;
+  const result=tick(s,[noon+60000,100,110,100,110,1]);
+  assert.equal(result.events.length,1);assert.equal(result.state.position,null);
+  assert.equal(result.state.entries_today,1);
+});
+test('sixth entry is allowed, seventh is blocked for either direction',()=>{
+  const sixth=tick(ready({entries_today:5}),bar(noon,100)).state;
+  assert.ok(sixth.position);assert.equal(sixth.entries_today,6);
+  for(const price of [100,110]) {
+    const blocked=tick(ready({entries_today:6}),bar(noon,price)).state;
+    assert.equal(blocked.position,null);assert.equal(blocked.phase,'Daily entry limit reached');
+  }
+});
+test('UTC midnight resets daily count while preserving a carried position',()=>{
+  const midnight=Date.parse('2026-10-09T00:00:00Z');
+  const opened=tick(ready({entries_today:5}),bar(noon,100)).state;
+  const carried=tick({...opened,last_candle:midnight-60000},bar(midnight,100)).state;
+  assert.equal(carried.entries_today,0);assert.deepEqual(carried.position,opened.position);
+  const next=tick({...carried,last_candle:midnight+12*3600000-60000,observation_count:720,range:{low:100,high:110},position:null},bar(midnight+12*3600000,100)).state;
+  assert.ok(next.position);assert.equal(next.entries_today,1);
+});
+test('the final UTC minute cannot create an entry in the observation period',()=>{
+  assert.equal(tick(ready(),bar(Date.parse('2026-10-08T23:59:00Z'),100)).state.position,null);
+});

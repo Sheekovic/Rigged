@@ -36,7 +36,7 @@ function render(state, trades, samples, updated) {
   $('phase').textContent = s.phase;
   $('position').textContent = s.position ? `${s.position.side.toUpperCase()} position open` : 'No position open.';
   $('position-detail').textContent = s.position ? `Entry ${money(s.position.entry)} · Margin ${money(s.position.margin)} · Notional ${money(s.position.qty*s.position.entry)}` : '';
-  $('rules').textContent = `${c.margin_mode} · ${c.range_mode} · ${c.timezone} · one position at a time`;
+  $('rules').textContent = `${c.margin_mode} · ${c.range_mode} · one position at a time · ${s.entries_today??0}/${c.max_daily_entries??6} entries today (UTC)`;
   $('assumptions').textContent = `Entry zone: ${pct(c.entry_tolerance*100)} from each extreme, within the observed range. Taker fee: ${pct(c.fee_rate*100)} each side of notional. Slippage: ${pct(c.slippage*100)} each fill. Maintenance margin assumption: ${pct(c.maintenance_rate*100)}. Historical funding is included. Targets use gross P&L / initial margin; net results deduct costs. ${c.margin_mode === 'cross' ? 'Cross collateral can lose more than the 10% allocation if a stop gaps.' : 'Isolated liquidation can occur before the intended −100% exit.'}`;
   $('started').textContent = `Started ${new Date(s.started_at).toLocaleString()}`;
   const age = Date.now()-Date.parse(updated);
