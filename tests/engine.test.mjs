@@ -2,12 +2,20 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {CONFIG,initialState,step} from '../supabase/functions/rigged-tick/engine.mjs';
 const noon=Date.parse('2026-10-08T12:00:00Z');
-const config={...CONFIG,version:2,fib_enabled:false,fee_rate:0,slippage:0};
+const config={...CONFIG,starting_capital:100,version:2,fib_enabled:false,fee_rate:0,slippage:0};
 function ready(overrides={}) {
   return {...initialState(noon,config),day:'2026-10-08',range:{low:100,high:110},observation_count:720,...overrides};
 }
 function bar(t,close,low=close,high=close) {return [t,close,high,low,close,1];}
 function tick(s,b,m=b,f=[]) {return step(s,b,m,f);}
+
+test('$500 starting capital sizes the first position at $50 margin',()=>{
+  const state=ready({config:{...config,starting_capital:500},balance:500,equity:500,peak:500});
+  assert.equal(initialState(noon,CONFIG).balance,500);
+  const opened=tick(state,bar(noon,100)).state;
+  assert.equal(opened.position.margin,50);
+  assert.equal(opened.position.qty*opened.position.entry,6000);
+});
 test('allocates exactly 10% and opens long only at a completed candle close',()=>{
   const {state}=tick(ready(),bar(noon,100));
   assert.equal(state.position.side,'long');assert.equal(state.position.margin,10);

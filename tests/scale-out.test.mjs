@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {CONFIG,initialState,step} from '../supabase/functions/rigged-tick/engine.mjs';
 const noon=Date.parse('2026-10-08T12:00:00Z'),midnight=noon-12*3600000;
 function setup(short=false,costs=false){
- const config={...CONFIG,target_roi:2,fee_rate:costs?.0005:0,slippage:costs?.0001:0};
+ const config={...CONFIG,starting_capital:100,target_roi:2,fee_rate:costs?.0005:0,slippage:costs?.0001:0};
  const bars=short?[{time:midnight,low:100.6,high:101},{time:midnight+3600000,low:100,high:100.5}]:[{time:midnight,low:100,high:100.5},{time:midnight+3600000,low:100.5,high:101}];
  const s={...initialState(noon,config),day:'2026-10-08',range:{low:100,high:101},observation_count:720,hourly_bars:bars};
  const p=short?101:100;return step(s,[noon,p,p,p,p,1],[noon,p,p,p,p,1]).state;

@@ -1,11 +1,11 @@
 # RIGGED
 
-**The $100 BTC futures paper experiment. Every outcome stays in the record.**
+**The $500 BTC futures paper experiment. Every outcome stays in the record.**
 
 Dashboard: [sheekovic.github.io/Rigged](https://sheekovic.github.io/Rigged/)
 
 RIGGED observes BTC/USDT's midnight-to-noon UTC range, then simulates longs near
-the low and shorts near the high. It starts with 100 USDT and compounds trade
+the low and shorts near the high. It starts with 500 USDT and compounds trade
 allocation from the current balance. It sends **no actual trading orders**.
 
 ## Published rules
@@ -13,7 +13,7 @@ allocation from the current balance. It sends **no actual trading orders**.
 | Rule | Value |
 | --- | --- |
 | Market | Binance USDⓈ-M BTC/USDT perpetual futures |
-| Starting capital | 100 USDT |
+| Starting capital | 500 USDT |
 | Margin mode | Cross; the full paper balance backs the position |
 | Allocation | 10% of current balance as initial margin |
 | Leverage | 120× |
@@ -39,6 +39,10 @@ configuration. Explicit rule changes are applied through versioned migrations;
 an engine deployment alone does not silently change an existing run's configuration.
 Entry distance and cooldown are explicit simulation parameters that can be reviewed
 and adjusted through versioned changes.
+
+The capital was increased from 100 to 500 USDT before the first trade. This change
+is recorded in run state, and the equity chart shows samples from the new capital
+baseline; earlier observations remain saved in Supabase.
 
 ## How it runs
 

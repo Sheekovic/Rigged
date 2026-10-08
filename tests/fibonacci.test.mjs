@@ -5,7 +5,7 @@ import {CONFIG,initialState,step} from '../supabase/functions/rigged-tick/engine
 const day='2026-10-08', midnight=Date.parse(day+'T00:00:00Z'),noon=midnight+12*3600000;
 const bars=[{time:midnight,low:100,high:105},{time:midnight+3600000,low:103,high:110}];
 const fib=buildFibonacci(bars,day,noon);
-const config={...CONFIG,fee_rate:0,slippage:0};
+const config={...CONFIG,starting_capital:100,fee_rate:0,slippage:0};
 function ready(extra={}) {return {...initialState(noon,config),day,range:{low:100,high:110},observation_count:720,hourly_bars:bars,...extra};}
 function bar(time,price,low=price,high=price){return [time,price,high,low,price,1];}
 test('upward swing retracements run from high back toward low',()=>{

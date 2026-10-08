@@ -25,7 +25,8 @@ function chart(samples) {
 function render(state, trades, samples, updated) {
   const s = state, c = s.config;
   $('equity').textContent = money(s.equity);
-  $('return').textContent = `${pct((s.equity/100-1)*100)} since $100 start`;
+  const capital=c.starting_capital??100;
+  $('return').textContent = `${pct((s.equity/capital-1)*100)} since ${money(capital)} start`;
   window.RIGGED_STATE=s;
   if(!window.RIGGED_MARKET_LIVE) {
     $('price').textContent = s.price ? money(s.price) : '—';
@@ -64,7 +65,7 @@ function render(state, trades, samples, updated) {
     }
   }
   $('export').disabled = !trades.length;
-  chart(samples.slice().reverse());
+  chart(samples.filter(x=>!s.capital_started_at||Date.parse(x.observed_at)>=Date.parse(s.capital_started_at)).reverse());
 }
 async function read(path) {
   const response = await fetch(`${config.supabaseUrl.replace(/\/$/,'')}/rest/v1/${path}`, {headers:{apikey:config.publishableKey}, signal:AbortSignal.timeout(12000),cache:'no-store'});

@@ -1,6 +1,6 @@
 import {advanceHourly,fibonacciPlan} from './fibonacci.mjs';
 export const CONFIG = Object.freeze({
-  version: 5, margin_mode: 'cross', range_mode: '00:00-12:00 UTC', timezone: 'UTC',
+  version: 5, starting_capital: 500, margin_mode: 'cross', range_mode: '00:00-12:00 UTC', timezone: 'UTC',
   leverage: 120, allocation: 0.1, target_roi: 2, stop_roi: -1,
   entry_tolerance: 0.001, fee_rate: 0.0005, slippage: 0.0001,
   maintenance_rate: 0.004, minimum_notional: 100, cooldown_minutes: 5, max_daily_entries: 6,
@@ -8,8 +8,9 @@ export const CONFIG = Object.freeze({
 });
 const iso = ms => new Date(ms).toISOString();
 export function initialState(now, config = CONFIG) {
+  const capital=config.starting_capital??100;
   return {config: {...config}, started_at:iso(now), start_candle:Math.ceil(now/60000)*60000,
-    last_candle:null, balance:100, equity:100, peak:100, max_drawdown:0,
+    last_candle:null, balance:capital, equity:capital, peak:capital, max_drawdown:0,
     position:null, closed:0, wins:0, price:null, phase:'Observing the range',
     day:null, range:null, observation_count:0, entries_today:0, cooldown_until:0, total_fees:0,
     total_funding:0, candles:[], history:[]};
