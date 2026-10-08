@@ -21,8 +21,8 @@ allocation from the current balance. It sends **no actual trading orders**.
 | Entries | 12:00–24:00 UTC, inside the fixed observed range |
 | Near an extreme | Within 0.10% of its price; provisional configurable assumption |
 | Fibonacci anchors | Current UTC day's lowest and highest wicks on completed 1-hour candles, ordered by their candle times |
-| Fibonacci entry filter | Trade with the swing direction, inside the 61.8–100% retracement zone, while also satisfying the 12-hour range entry |
-| Take profit | Nearer 38.2% recovery level or +200% gross P&L / initial margin |
+| Fibonacci entry filter | None; range entries do not require Fibonacci confirmation |
+| Take profit | Sell 25% of original quantity at each of the first three profitable Fib levels; trail the remainder to the frozen swing endpoint |
 | Intended stop | Nearer swing invalidation (0.10% beyond its starting extreme) or −100% gross P&L / initial margin |
 | Positions | One at a time; existing positions may carry into the next day |
 | Daily entry limit | At most 6 new positions per UTC day; no minimum forced |
@@ -57,30 +57,45 @@ and adjusted through versioned changes.
 The black-and-gold pixel interface uses an original, locally generated bitmap-outline
 font. Neither the chart nor the font needs a third-party library or a remote font service.
 
-## Fibonacci model (version 3)
+## Fibonacci exits (version 5)
 
 Fibonacci retracement measures the portion of a price move that has been retraced.
 This model selects the current UTC day's lowest and highest wicks from completed
 hourly candles. Earlier low then later high is an upward swing; earlier high then
 later low is a downward swing. If both extrema are in the same hourly candle, their
-order is unknown and no setup is accepted. It uses a linear price scale.
+order is unknown; the chart has no ordered swing and entries use ROI exits instead.
+It uses a linear price scale.
 
 The displayed levels are 0%, 23.6%, 38.2%, 50%, 61.8%, 78.6%, and 100%, measured
-back from the swing endpoint. New entries require a retracement into the 61.8–100%
-zone, consistent with the swing direction, and proximity to the fixed 12-hour range
-extreme. Fibonacci has no universal entry/exit rules; these are explicit simulation
-choices, not a safety guarantee.
+back from the swing endpoint. Entries depend only on proximity to the fixed
+12-hour range extreme. Exit progress is measured from low to high for longs and
+high to low for shorts, independently of the chart's retracement direction.
 
-Each new position freezes its anchors, target, and stop. Recovery to 38.2% can take
-profit before the +200% margin ROI ceiling. Crossing 0.10% beyond the initial swing
-extreme can close a loss before the −100% ceiling. Gaps can still exceed these limits.
+Each new position freezes its anchors and initial stop. With entry near the swing
+extreme, sell 25% of original quantity at 23.6%, then 38.2%, then 50%. Levels already
+behind entry are skipped; use up to three remaining profitable levels. After the
+first fill, move the stop to entry; after later fills, move it to the preceding
+target. The remaining quantity trails the subsequent Fib levels with its stop one
+level behind, and exits at the frozen opposite endpoint or its stop. This is an
+explicit automation assumption for discretionary trade weakness, using only
+anchors known at entry. It does not identify the future day's peak.
+
+The initial stop is the nearer adverse swing invalidation (0.10% buffer) or −100%
+gross margin ROI. Without profitable Fib targets, use the nearer profitable 61.8%
+recovery or +200% ROI as a full exit, falling back to ROI when anchors are absent.
+Moving the stop to entry does not cover fees or slippage. Gaps can exceed stops.
+If a minute bar touches a target and the newly raised stop, the remaining quantity
+exits at that stop before subsequent targets. Staged Fib exits replace the fixed
++200% ceiling for positions with a scale-out plan.
 Re-entry requires closing first, waiting five minutes, and a fresh qualifying signal;
 it consumes another daily entry. There is no averaging into an open position.
 
-Version 3 is recorded as a timestamped change in run state; the account and past
+Version 5 is recorded as a timestamped change in run state; the account and past
 results are preserved. The trade ledger and CSV identify each trade's strategy
-version and the database retains its Fibonacci anchors. Existing positions from
-earlier versions retain their original ROI exits. Results spanning a rule change
+version and the database retains its Fibonacci anchors and individual exit fills.
+Pending partial exits are saved in the open position; the ledger records a closed
+position as one trade with a quantity-weighted average exit. Existing positions
+retain their original exit plans. Results spanning a rule change
 must not be described as a single unchanged strategy.
 
 On startup, earlier candles from the current UTC day warm up the observed range.
