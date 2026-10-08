@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {CONFIG,initialState,step} from '../supabase/functions/rigged-tick/engine.mjs';
 const noon=Date.parse('2026-10-08T12:00:00Z');
-const config={...CONFIG,starting_capital:100,version:2,fib_enabled:false,fee_rate:0,slippage:0};
+const config={...CONFIG,profit_lock_roi:null,starting_capital:100,version:2,fib_enabled:false,fee_rate:0,slippage:0};
 function ready(overrides={}) {
   return {...initialState(noon,config),day:'2026-10-08',range:{low:100,high:110},observation_count:720,...overrides};
 }

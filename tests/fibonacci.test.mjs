@@ -5,7 +5,7 @@ import {CONFIG,initialState,step} from '../supabase/functions/rigged-tick/engine
 const day='2026-10-08', midnight=Date.parse(day+'T00:00:00Z'),noon=midnight+12*3600000;
 const bars=[{time:midnight,low:100,high:105},{time:midnight+3600000,low:103,high:110}];
 const fib=buildFibonacci(bars,day,noon);
-const config={...CONFIG,starting_capital:100,fee_rate:0,slippage:0};
+const config={...CONFIG,profit_lock_roi:null,starting_capital:100,fee_rate:0,slippage:0};
 function ready(extra={}) {return {...initialState(noon,config),day,range:{low:100,high:110},observation_count:720,hourly_bars:bars,...extra};}
 function bar(time,price,low=price,high=price){return [time,price,high,low,price,1];}
 test('upward swing retracements run from high back toward low',()=>{
@@ -33,7 +33,7 @@ test('partial hourly aggregation is excluded; complete hour has all 60 bars',()=
 });
 test('entry uses the range extreme without requiring Fibonacci direction or retracement',()=>{
  const long=step(ready(),bar(noon,100),bar(noon,100)).state;
- assert.equal(long.position.side,'long');assert.ok(long.position.fib);assert.equal(long.position.strategy_version,5);
+ assert.equal(long.position.side,'long');assert.ok(long.position.fib);assert.equal(long.position.strategy_version,6);
  assert.equal(step(ready(),bar(noon,110),bar(noon,110)).state.position.side,'short');
  assert.ok(fibonacciPlan(fib,'long',105,config));
 });
@@ -81,7 +81,7 @@ test('short position uses mirrored Fibonacci invalidation and records its anchor
  const b=[noon+60000,110,110.2,110,110.2,1];
  const result=step(opened,b,b);
  assert.equal(result.events[0].reason,'Fibonacci invalidation');assert.equal(result.events[0].fib.direction,'down');
- assert.equal(result.events[0].strategy_version,5);assert.equal(result.state.position,null);
+ assert.equal(result.events[0].strategy_version,6);assert.equal(result.state.position,null);
 });
 test('lower re-entry closes first, waits the full cooldown, and consumes a new entry',()=>{
  let s=step(ready(),bar(noon,100.08),bar(noon,100.08)).state;

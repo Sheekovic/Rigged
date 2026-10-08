@@ -1,12 +1,21 @@
 import {advanceHourly,fibonacciPlan} from './fibonacci.mjs';
 export const CONFIG = Object.freeze({
-  version: 5, starting_capital: 500, margin_mode: 'cross', range_mode: '00:00-12:00 UTC', timezone: 'UTC',
+  version: 6, starting_capital: 500, profit_lock_roi: 1, margin_mode: 'cross', range_mode: '00:00-12:00 UTC', timezone: 'UTC',
   leverage: 120, allocation: 0.1, target_roi: 2, stop_roi: -1,
   entry_tolerance: 0.001, fee_rate: 0.0005, slippage: 0.0001,
   maintenance_rate: 0.004, minimum_notional: 100, cooldown_minutes: 5, max_daily_entries: 6,
   fib_enabled: true, fib_entry_filter: false, fib_partial_exits: true, fib_stop_buffer: 0.001,
 });
 const iso = ms => new Date(ms).toISOString();
+// Raw trigger price whose remaining exit, including costs, locks the requested
+// total trade profit. Balance already includes partial fills and funding.
+export function profitLockPrice(position,balance,config) {
+  if(!(position.profit_lock_roi>0))return null;
+  const sign=position.side==='long'?1:-1;
+  const fill=(position.balance_before_entry+position.margin*position.profit_lock_roi-balance
+    +sign*position.qty*position.entry)/(position.qty*(sign-config.fee_rate));
+  return fill/(1-sign*config.slippage);
+}
 export function initialState(now, config = CONFIG) {
   const capital=config.starting_capital??100;
   return {config: {...config}, started_at:iso(now), start_candle:Math.ceil(now/60000)*60000,
@@ -45,30 +54,44 @@ export function step(state, candle, mark, funding = []) {
     const liquidation=worstEquity<=p.qty*worstMark*c.maintenance_rate;
     const hitStop=sign===1?low<=stop:high>=stop;
     const hitTarget=sign===1?high>=target:low<=target;
+    const lockPrice=()=>profitLockPrice(p,s.balance,c);
+    const hit=price=>sign===1?high>=price:low<=price;
+    const lockEnabled=p.profit_lock_roi>0;
+    const lockReason='100% net margin profit locked';
     let reason=null, exit=null;
     // Bar ordering is unknown: always resolve adverse outcomes before profit.
     if(liquidation) {reason='cross liquidation (approx.)';exit=worstMark;}
     else if(hitStop) {reason=p.stop_reason??'stop loss';exit=sign===1?Math.min(open,stop):Math.max(open,stop);}
-    else if(!p.scale_out && hitTarget) {reason=p.target_reason??'take profit';exit=sign===1?Math.max(open,target):Math.min(open,target);}
+    else if(!p.scale_out) {
+      const lock=lockPrice();
+      if(lockEnabled&&hit(lock)&&sign*(lock-target)<=0){reason=lockReason;exit=sign===1?Math.max(open,lock):Math.min(open,lock);}
+      else if(hitTarget){reason=p.target_reason??'take profit';exit=sign===1?Math.max(open,target):Math.min(open,target);}
+    }
     if(!reason && p.scale_out) {
       const plan=p.scale_out;
-      const hit=price=>sign===1?high>=price:low<=price;
       const raiseStop=price=>{p.stop=sign===1?Math.max(p.stop,price):Math.min(p.stop,price);p.stop_reason='Fibonacci trailing stop';};
       const raisedStopTouched=()=>sign===1?low<=p.stop:high>=p.stop;
       while(plan.filled<plan.targets.length && hit(plan.targets[plan.filled].price)) {
         const point=plan.targets[plan.filled];
+        // Process partial targets only if they precede the net-profit lock.
+        if(lockEnabled&&sign*(lockPrice()-point.price)<=0)break;
         const raw=sign===1?Math.max(open,point.price):Math.min(open,point.price);
         const fillPrice=raw*(1-sign*c.slippage),qty=p.original_qty*.25,fee=qty*fillPrice*c.fee_rate;
         s.balance+=sign*qty*(fillPrice-p.entry)-fee;s.total_fees+=fee;
         p.qty-=qty;p.exit_fees=(p.exit_fees??0)+fee;
         p.fills.push({closed_at:iso(time+60000),price:fillPrice,qty,fraction:.25,fees:fee,reason:`Fibonacci ${(point.ratio*100).toFixed(1)}%`});
         const nextStop=plan.filled===0?p.entry:plan.targets[plan.filled-1].price;
-        plan.filled++;raiseStop(nextStop);
+        plan.filled++;if(!lockEnabled)raiseStop(nextStop);
         // Unknown intrabar ordering: raised stop wins over subsequent targets.
-        if(raisedStopTouched()){reason=p.stop_reason;exit=p.stop;break;}
+        if(!lockEnabled&&raisedStopTouched()){reason=p.stop_reason;exit=p.stop;break;}
+      }
+      const endpointFirst=plan.filled===plan.targets.length&&lockEnabled&&sign*(plan.peak-lockPrice())<0;
+      if(!reason&&lockEnabled&&!endpointFirst&&hit(lockPrice())) {
+        const lock=lockPrice();p.stop=lock;p.stop_reason=lockReason;
+        reason=lockReason;exit=sign===1?Math.max(open,lock):Math.min(open,lock);
       }
       if(!reason && plan.filled===plan.targets.length) {
-        while(plan.runner_crossed<plan.runner_levels.length && hit(plan.runner_levels[plan.runner_crossed].price)) {
+        while(!lockEnabled&&plan.runner_crossed<plan.runner_levels.length && hit(plan.runner_levels[plan.runner_crossed].price)) {
           const nextStop=plan.runner_crossed===0?plan.targets.at(-1).price:plan.runner_levels[plan.runner_crossed-1].price;
           plan.runner_crossed++;raiseStop(nextStop);
           if(raisedStopTouched()){reason=p.stop_reason;exit=p.stop;break;}
@@ -110,12 +133,15 @@ export function step(state, candle, mark, funding = []) {
         const plan=c.fib_enabled?fibonacciPlan(s.fib,side,entry,c):{};
         if(plan) {
           const beforeEntry=s.balance;s.balance-=entryFee;s.total_fees+=entryFee;
-          s.position={side,entry,qty,original_qty:qty,balance_before_entry:beforeEntry,fills:[],exit_fees:0,margin,entry_fee:entryFee,funding:0,opened_at:time+60000,strategy_version:c.version,...plan};
+          s.position={side,entry,qty,original_qty:qty,balance_before_entry:beforeEntry,fills:[],exit_fees:0,margin,entry_fee:entryFee,funding:0,opened_at:time+60000,strategy_version:c.version,profit_lock_roi:c.profit_lock_roi??null,...plan};
           if(s.position.scale_out)s.position.target=s.position.scale_out.targets[0].price;
           s.entries_today=entriesToday+1;
         }
       }
     }
+  }
+  if(s.position?.profit_lock_roi>0){
+    s.position.profit_lock_price=profitLockPrice(s.position,s.balance,c);
   }
   const unrealized=s.position?(s.position.side==='long'?1:-1)*s.position.qty*(mark[4]-s.position.entry):0;
   s.equity=Math.max(0,s.balance+unrealized);

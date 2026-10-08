@@ -22,7 +22,7 @@ allocation from the current balance. It sends **no actual trading orders**.
 | Near an extreme | Within 0.10% of its price; provisional configurable assumption |
 | Fibonacci anchors | Current UTC day's lowest and highest wicks on completed 1-hour candles, ordered by their candle times |
 | Fibonacci entry filter | None; range entries do not require Fibonacci confirmation |
-| Take profit | Sell 25% of original quantity at each of the first three profitable Fib levels; trail the remainder to the frozen swing endpoint |
+| Take profit | Sell 25% at each of three profitable Fib levels; close the remainder at +100% net initial-margin profit or the frozen endpoint |
 | Intended stop | Nearer swing invalidation (0.10% beyond its starting extreme) or −100% gross P&L / initial margin |
 | Positions | One at a time; existing positions may carry into the next day |
 | Daily entry limit | At most 6 new positions per UTC day; no minimum forced |
@@ -61,7 +61,7 @@ baseline; earlier observations remain saved in Supabase.
 The black-and-gold pixel interface uses an original, locally generated bitmap-outline
 font. Neither the chart nor the font needs a third-party library or a remote font service.
 
-## Fibonacci exits (version 5)
+## Fibonacci exits (version 6)
 
 Fibonacci retracement measures the portion of a price move that has been retraced.
 This model selects the current UTC day's lowest and highest wicks from completed
@@ -77,24 +77,27 @@ high to low for shorts, independently of the chart's retracement direction.
 
 Each new position freezes its anchors and initial stop. With entry near the swing
 extreme, sell 25% of original quantity at 23.6%, then 38.2%, then 50%. Levels already
-behind entry are skipped; use up to three remaining profitable levels. After the
-first fill, move the stop to entry; after later fills, move it to the preceding
-target. The remaining quantity trails the subsequent Fib levels with its stop one
-level behind, and exits at the frozen opposite endpoint or its stop. This is an
-explicit automation assumption for discretionary trade weakness, using only
-anchors known at entry. It does not identify the future day's peak.
+behind entry are skipped; use up to three remaining profitable levels.
 
-The initial stop is the nearer adverse swing invalidation (0.10% buffer) or −100%
-gross margin ROI. Without profitable Fib targets, use the nearer profitable 61.8%
-recovery or +200% ROI as a full exit, falling back to ROI when anchors are absent.
-Moving the stop to entry does not cover fees or slippage. Gaps can exceed stops.
-If a minute bar touches a target and the newly raised stop, the remaining quantity
-exits at that stop before subsequent targets. Staged Fib exits replace the fixed
-+200% ceiling for positions with a scale-out plan.
+Version 6 retains the initial stop through partial exits. When total net trade
+profit reaches 100% of its initial margin, close the remaining quantity to lock
+that profit. For example, $50 initial margin targets $50 net profit. The trigger
+includes already realized partial profits, entry/exit fees, adverse slippage and
+funding. Placing a stop at exactly its activation price is an immediate exit, not
+a trail that waits for further gains. Favorable opening gaps can exceed the target.
+
+The initial stop is the nearer adverse swing invalidation (0.10% buffer) or -100%
+gross margin ROI. It is not moved at the first, second, or third Fib target. The
+runner can also exit at the frozen opposite endpoint. Without staged Fib targets,
+the prior full recovery/ROI target can exit earlier; the net-profit lock applies
+if reached before that target. Missing anchors use ROI exits and the profit lock.
+A minute touching both the existing stop and profit trigger resolves the stop
+first. These are simulated fills; actual gaps and execution costs can change the
+result. Version 5's stepped stops remain attached to any already open positions.
 Re-entry requires closing first, waiting five minutes, and a fresh qualifying signal;
 it consumes another daily entry. There is no averaging into an open position.
 
-Version 5 is recorded as a timestamped change in run state; the account and past
+Version 6 is recorded as a timestamped change in run state; the account and past
 results are preserved. The trade ledger and CSV identify each trade's strategy
 version and the database retains its Fibonacci anchors and individual exit fills.
 Pending partial exits are saved in the open position; the ledger records a closed
