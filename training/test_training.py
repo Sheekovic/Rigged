@@ -2,10 +2,11 @@ import json
 from pathlib import Path
 import subprocess
 import unittest
+from unittest.mock import patch
 import numpy as np
 import torch
 from .environment import Market,TradingEnv
-from .train import Policy,optimize
+from .train import Policy,optimize,final_evaluations
 
 def fixture(short=False):
     rows=[];start=1704067200000
@@ -24,6 +25,12 @@ def fixture(short=False):
     return np.asarray(rows)
 
 class TrainingTests(unittest.TestCase):
+    def test_validation_only_never_evaluates_test_dates(self):
+        validation=[(1,2)];test=[(3,4)]
+        with patch('training.train.evaluate',return_value={'summary':{}}) as evaluation:
+            result=final_evaluations(None,None,validation,test,validation_only=True)
+            evaluation.assert_called_once_with(None,None,validation)
+        self.assertIsNone(result['test_policy']);self.assertIsNone(result['test_fixed_strategy'])
     def test_matches_deployed_long_and_short(self):
         for short in (False,True):
             data=fixture(short);env=TradingEnv(Market(data));env.reset(0,len(data))

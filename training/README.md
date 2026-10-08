@@ -81,12 +81,16 @@ new years or dependencies should be a deliberate choice.
 To continue training the learned weights, use a new output directory:
 
 ```powershell
-python -m training.train --resume training/runs/initial/latest.pt --updates 40 --rollout 1024 --output training/runs/continued
+python -m training.train --resume training/runs/initial/latest.pt --updates 500 --rollout 1024 --validation-only --output training/runs/continued
 ```
 
 Resume restores the policy and optimizer, requires the same data hash, splits,
 rules, and rollout size, and starts fresh episodes. It does not reproduce an
 interrupted trajectory byte for byte. More updates alone do not establish skill.
+Use `--validation-only` after inspecting the first test report. It records the
+validation result and leaves test metrics null, without running either test
+policy or test baseline. Further validation results are development results,
+not a fresh independent test of profitability.
 
 Outputs are local and ignored by Git:
 

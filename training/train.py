@@ -76,7 +76,15 @@ def optimize(policy,optimizer,obs,masks,actions,old_logprobs,returns,advantages,
             losses.append(float(loss.detach()))
     return float(np.mean(losses))
 
-def train(market,output,updates=40,rollout=1024,seed=42,resume=None):
+def final_evaluations(policy,market,validation,test,validation_only=False):
+    result={'validation_policy':evaluate(policy,market,validation),
+            'test_policy':None,'test_fixed_strategy':None}
+    if not validation_only:
+        result['test_policy']=evaluate(policy,market,test)
+        result['test_fixed_strategy']=evaluate(policy,market,test,baseline=True)
+    return result
+
+def train(market,output,updates=40,rollout=1024,seed=42,resume=None,validation_only=False):
     random.seed(seed);np.random.seed(seed);torch.manual_seed(seed);torch.set_num_threads(4)
     output.mkdir(parents=True,exist_ok=True)
     dataset_hash=hashlib.sha256((ROOT/'data'/'btc-usdt-1m.npy').read_bytes()).hexdigest()
@@ -132,12 +140,13 @@ def train(market,output,updates=40,rollout=1024,seed=42,resume=None):
         with metrics.open('a',encoding='utf-8') as stream:stream.write(json.dumps(record)+'\n')
         print(json.dumps(record),flush=True)
     selected=torch.load(output/'best.pt',map_location='cpu',weights_only=True);policy.load_state_dict(selected['policy'])
-    report={'method':'masked PPO neural policy','status':'initial experiment, not a proven profitable strategy',
+    report={'method':'masked PPO neural policy','status':'research experiment, not a proven profitable strategy',
+            'evaluation_scope':'validation_only' if validation_only else 'validation_and_test',
+            'resume_checkpoint':str(resume) if resume else None,
             'dataset_sha256':dataset_hash,'config':CONFIG,'splits':SPLITS,'seed':seed,'selected_update':selected['updates'],
             'completed_updates':completed+updates,'decisions':(completed+updates)*rollout,'wall_seconds':time.monotonic()-started,
             'episode_initial_equity':100,'episode_days':7,'actions':ACTIONS,
-            'validation_policy':evaluate(policy,market,validation),
-            'test_policy':evaluate(policy,market,test),'test_fixed_strategy':evaluate(policy,market,test,baseline=True),
+            **final_evaluations(policy,market,validation,test,validation_only),
             'cash_baseline_final_equity':100,
             'limitations':['Approximate cross liquidation, fixed fees and slippage; not exchange-specific historical tiers.',
                            'One-minute OHLC cannot determine intrabar order; adverse fills are resolved first.',
@@ -146,16 +155,18 @@ def train(market,output,updates=40,rollout=1024,seed=42,resume=None):
     (output/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     (output/'policy.json').write_text(json.dumps({'architecture':[27,128,128,5],'activation':'tanh','actions':ACTIONS,
         'config':CONFIG,'dataset_sha256':dataset_hash,'weights':{k:v.tolist() for k,v in selected['policy'].items()}}),encoding='utf-8')
-    print(json.dumps({'report':str(output/'report.json'),'test_policy':report['test_policy']['summary'],
-                      'test_fixed_strategy':report['test_fixed_strategy']['summary']}),flush=True)
+    print(json.dumps({'report':str(output/'report.json'),'validation_policy':report['validation_policy']['summary'],
+                      'test_policy':report['test_policy']['summary'] if report['test_policy'] else None,
+                      'test_fixed_strategy':report['test_fixed_strategy']['summary'] if report['test_fixed_strategy'] else None}),flush=True)
     return report
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--updates',type=int,default=40);parser.add_argument('--rollout',type=int,default=1024)
     parser.add_argument('--seed',type=int,default=42);parser.add_argument('--resume',type=Path);parser.add_argument('--output',type=Path,default=ROOT/'runs'/'initial')
+    parser.add_argument('--validation-only',action='store_true',help='Continue training without re-evaluating the already inspected test dates')
     args=parser.parse_args()
     if args.updates<1 or args.rollout<32:parser.error('Use at least one update and 32 decisions per rollout')
     if (args.output/'report.json').exists():parser.error('Use a new output directory; preserve prior test results')
     data=np.load(ROOT/'data'/'btc-usdt-1m.npy',mmap_mode='r');market=Market(data)
-    train(market,args.output,args.updates,args.rollout,args.seed,args.resume)
+    train(market,args.output,args.updates,args.rollout,args.seed,args.resume,args.validation_only)
 if __name__=='__main__':main()
