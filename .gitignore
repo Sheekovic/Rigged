@@ -5,4 +5,6 @@ __pycache__/
 strategy.local.json
 .preview/
 web/fibonacci.mjs
+training/data/
+training/runs/
 
