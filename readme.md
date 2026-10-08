@@ -115,16 +115,6 @@ drawdown can be larger. The dashboard displays the latest 720 equity samples and
 ledger. An administrator can modify database records, so this is a transparent
 record, not a tamper-proof audit or a promise of future returns.
 
-## Offline neural policy training
-
-The [historical trainer](training/README.md) learns a masked PPO trading policy
-from checksummed Binance 2024–2025 futures archives. Each episode starts with
-100 USDT, retaining learned weights between episodes. Leverage stays at 120x;
-one-position and six-entry limits are enforced. Later dates are held out for
-validation and testing against the fixed strategy and a cash baseline. Model
-checkpoints, historical data, and full reports are saved locally outside Git.
-The live dashboard remains a separate forward paper experiment.
-
 ## Local preview and checks
 
 No frontend build or npm install is required.
