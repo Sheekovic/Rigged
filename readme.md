@@ -20,8 +20,10 @@ allocation from the current balance. It sends **no actual trading orders**.
 | Observation | 00:00–12:00 UTC; all 720 completed minute candles required |
 | Entries | 12:00–24:00 UTC, inside the fixed observed range |
 | Near an extreme | Within 0.10% of its price; provisional configurable assumption |
-| Take profit | +200% gross P&L / initial margin |
-| Intended stop | −100% gross P&L / initial margin |
+| Fibonacci anchors | Current UTC day's lowest and highest wicks on completed 1-hour candles, ordered by their candle times |
+| Fibonacci entry filter | Trade with the swing direction, inside the 61.8–100% retracement zone, while also satisfying the 12-hour range entry |
+| Take profit | Nearer 38.2% recovery level or +200% gross P&L / initial margin |
+| Intended stop | Nearer swing invalidation (0.10% beyond its starting extreme) or −100% gross P&L / initial margin |
 | Positions | One at a time; existing positions may carry into the next day |
 | Daily entry limit | At most 6 new positions per UTC day; no minimum forced |
 | Re-entry | Five-minute cooldown after closing |
@@ -46,6 +48,40 @@ and adjusted through versioned changes.
 3. The engine advances in chronological order, saving state, trades, and equity
    together through an atomic compare-and-swap database function.
 4. GitHub Pages serves `web/`. It polls public Supabase records every 15 seconds.
+5. The custom canvas chart displays real hourly candles, volume, a crosshair, and
+   Fibonacci levels. Binance's public futures WebSocket streams update the forming
+   hourly candle and trade price. If the stream is unavailable, the chart explicitly
+   labels the CCXT snapshot saved by Supabase each minute. The chart supports drag,
+   zoom, keyboard controls, day view, and fullscreen.
+
+The black-and-gold pixel interface uses an original, locally generated bitmap-outline
+font. Neither the chart nor the font needs a third-party library or a remote font service.
+
+## Fibonacci model (version 3)
+
+Fibonacci retracement measures the portion of a price move that has been retraced.
+This model selects the current UTC day's lowest and highest wicks from completed
+hourly candles. Earlier low then later high is an upward swing; earlier high then
+later low is a downward swing. If both extrema are in the same hourly candle, their
+order is unknown and no setup is accepted. It uses a linear price scale.
+
+The displayed levels are 0%, 23.6%, 38.2%, 50%, 61.8%, 78.6%, and 100%, measured
+back from the swing endpoint. New entries require a retracement into the 61.8–100%
+zone, consistent with the swing direction, and proximity to the fixed 12-hour range
+extreme. Fibonacci has no universal entry/exit rules; these are explicit simulation
+choices, not a safety guarantee.
+
+Each new position freezes its anchors, target, and stop. Recovery to 38.2% can take
+profit before the +200% margin ROI ceiling. Crossing 0.10% beyond the initial swing
+extreme can close a loss before the −100% ceiling. Gaps can still exceed these limits.
+Re-entry requires closing first, waiting five minutes, and a fresh qualifying signal;
+it consumes another daily entry. There is no averaging into an open position.
+
+Version 3 is recorded as a timestamped change in run state; the account and past
+results are preserved. The trade ledger and CSV identify each trade's strategy
+version and the database retains its Fibonacci anchors. Existing positions from
+earlier versions retain their original ROI exits. Results spanning a rule change
+must not be described as a single unchanged strategy.
 
 On startup, earlier candles from the current UTC day warm up the observed range.
 They never create retrospective trades. Paper trading begins with the next full
@@ -84,10 +120,16 @@ record, not a tamper-proof audit or a promise of future returns.
 No frontend build or npm install is required.
 
 ```powershell
+Copy-Item supabase/functions/rigged-tick/fibonacci.mjs web/fibonacci.mjs
 python -m http.server 8080 --directory web
-node --test tests/engine.test.mjs
+node --test tests/*.test.mjs
 node --check web/app.js
+node --check web/market-chart.mjs
 ```
+
+The Pages workflow copies the same Fibonacci calculation module used by the worker
+into the static site. To regenerate the original pixel font, run
+`python scripts/make-pixel-font.py`; this uses only the Python standard library.
 
 Open `http://localhost:8080`. The browser's public URL and publishable key are in
 `web/config.js`. These identify a read-only public Supabase connection. Never put
@@ -95,7 +137,9 @@ a service-role key, access token, or Binance trading key in that file.
 
 ## Deployment
 
-The Supabase migrations create only `rigged_*` objects. All public tables use RLS,
+The Supabase migrations create only `rigged_*` objects (plus scheduler extensions).
+`rigged_candles` preserves hourly OHLCV market data independently of equity samples.
+All public tables use RLS,
 with read access for visitors and writes restricted to the service role. The
 scheduler token is randomly generated in Supabase Vault and is never committed.
 The Edge Function gets its service-role credentials from Supabase's server environment.
@@ -114,4 +158,6 @@ project ID in repository variables; do not commit credentials.
 Reference documentation: [Supabase scheduled functions](https://supabase.com/docs/guides/functions/schedule-functions),
 [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [CCXT Binance futures](https://github.com/ccxt/ccxt/wiki/binanceusdm),
+[Fibonacci drawing conventions](https://www.tradingview.com/support/solutions/43000518158-fibonacci-retracement-drawing-tool/),
+[Binance futures market streams](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/market),
 [GitHub Pages deployment](https://docs.github.com/en/get-started/start-your-journey/deploying-your-website-automatically).

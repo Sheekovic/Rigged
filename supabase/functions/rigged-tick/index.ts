@@ -11,7 +11,9 @@ async function db(path: string, body?: unknown) {
     body:body === undefined ? undefined : JSON.stringify(body), signal:AbortSignal.timeout(15000),
   });
   if(!response.ok) throw Error(`Database request failed (${response.status})`);
-  return response.json();
+  // PostgREST can return an empty body for void RPCs.
+  const bodyText=await response.text();
+  return bodyText.trim()?JSON.parse(bodyText):null;
 }
 Deno.serve(async request => {
   try {
@@ -27,11 +29,18 @@ Deno.serve(async request => {
     const since=state.last_candle===null?midnight:state.last_candle+60000;
     const exchange=new ccxt.binanceusdm({enableRateLimit:true,timeout:15000});
     const symbol='BTC/USDT:USDT';
-    const [candles,marks,funding]=await Promise.all([
+    const [candles,marks,funding,hourly]=await Promise.all([
       exchange.fetchOHLCV(symbol,'1m',since,500),
       exchange.fetchMarkOHLCV(symbol,'1m',since,500),
       exchange.fetchFundingRateHistory(symbol,since,1000),
+      exchange.fetchOHLCV(symbol,'1h',midnight-2*86400000,72),
     ]);
+    // Hydrate existing runs only with hourly information already known at the watermark.
+    if(!Array.isArray(state.hourly_bars)) {
+      const day=new Date(since).toISOString().slice(0,10);
+      state.hourly_bars=hourly.filter((x:any)=>x[0]+3600000<=since && new Date(x[0]).toISOString().slice(0,10)===day)
+        .map((x:any)=>({time:x[0],open:x[1],high:x[2],low:x[3],close:x[4],volume:x[5]}));
+    }
     const markByTime=new Map(marks.map((x:any)=>[x[0],x]));
     const trades:any[]=[], samples:any[]=[];
     let processed=0;
@@ -44,6 +53,8 @@ Deno.serve(async request => {
       state=result.state;trades.push(...result.events);if(result.sample)samples.push(result.sample);processed++;
     }
     if(processed || version===-1) await db('rpc/rigged_commit',{expected_version:version,next_state:state,trades,samples});
+    const chartCandles=hourly.map((x:any)=>({time:x[0],open:x[1],high:x[2],low:x[3],close:x[4],volume:x[5],is_closed:x[0]+3600000<=started}));
+    await db('rpc/rigged_save_candles',{candles:chartCandles,source_observed_at:new Date(started).toISOString()});
     return Response.json({ok:true,processed,last_candle:state.last_candle});
   } catch(error) {
     // Never log request headers, scheduler tokens, or database keys.

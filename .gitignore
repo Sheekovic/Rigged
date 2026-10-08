@@ -4,4 +4,5 @@ __pycache__/
 *.pyc
 strategy.local.json
 .preview/
+web/fibonacci.mjs
 

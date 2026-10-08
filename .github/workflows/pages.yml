@@ -2,7 +2,7 @@ name: Publish dashboard
 on:
   push:
     branches: [main]
-    paths: ['web/**', '.github/workflows/pages.yml']
+    paths: ['web/**', 'supabase/functions/rigged-tick/fibonacci.mjs', '.github/workflows/pages.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,6 +19,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Copy shared Fibonacci calculations
+        run: cp supabase/functions/rigged-tick/fibonacci.mjs web/fibonacci.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

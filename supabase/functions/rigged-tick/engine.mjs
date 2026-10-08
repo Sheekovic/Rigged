@@ -1,8 +1,10 @@
+import {advanceHourly,fibonacciPlan} from './fibonacci.mjs';
 export const CONFIG = Object.freeze({
-  version: 2, margin_mode: 'cross', range_mode: '00:00-12:00 UTC', timezone: 'UTC',
+  version: 3, margin_mode: 'cross', range_mode: '00:00-12:00 UTC', timezone: 'UTC',
   leverage: 120, allocation: 0.1, target_roi: 2, stop_roi: -1,
   entry_tolerance: 0.001, fee_rate: 0.0005, slippage: 0.0001,
   maintenance_rate: 0.004, minimum_notional: 100, cooldown_minutes: 5, max_daily_entries: 6,
+  fib_enabled: true, fib_stop_buffer: 0.001,
 });
 const iso = ms => new Date(ms).toISOString();
 export function initialState(now, config = CONFIG) {
@@ -19,7 +21,8 @@ export function step(state, candle, mark, funding = []) {
   if (s.last_candle !== null && time !== s.last_candle + 60000) throw Error('Candle gap or duplicate: refusing to skip market history');
   const day = iso(time).slice(0,10), hour = new Date(time).getUTCHours();
   const events = [];
-  if(s.day!==day) {s.day=day;s.range=null;s.observation_count=0;s.entries_today=0;}
+  if(s.day!==day) {s.day=day;s.range=null;s.observation_count=0;s.entries_today=0;s.hourly_bars=[];s.hourly_building=null;s.fib=null;}
+  advanceHourly(s,candle);
   if(hour<12) {
     s.range={low:Math.min(s.range?.low??low,low),high:Math.max(s.range?.high??high,high)};
     s.observation_count++;
@@ -34,8 +37,8 @@ export function step(state, candle, mark, funding = []) {
       const cost=p.qty*mark[1]*f.fundingRate*sign;
       s.balance-=cost;p.funding+=cost;s.total_funding+=cost;
     }
-    const target=p.entry*(1+sign*c.target_roi/c.leverage);
-    const stop=p.entry*(1+sign*c.stop_roi/c.leverage);
+    const target=p.target??p.entry*(1+sign*c.target_roi/c.leverage);
+    const stop=p.stop??p.entry*(1+sign*c.stop_roi/c.leverage);
     const worstMark=sign===1?mark[3]:mark[2];
     const worstEquity=s.balance+sign*p.qty*(worstMark-p.entry);
     const liquidation=worstEquity<=p.qty*worstMark*c.maintenance_rate;
@@ -44,8 +47,8 @@ export function step(state, candle, mark, funding = []) {
     let reason=null, exit=null;
     // Bar ordering is unknown: always resolve adverse outcomes before profit.
     if(liquidation) {reason='cross liquidation (approx.)';exit=worstMark;}
-    else if(hitStop) {reason='stop loss';exit=sign===1?Math.min(open,stop):Math.max(open,stop);}
-    else if(hitTarget) {reason='take profit';exit=sign===1?Math.max(open,target):Math.min(open,target);}
+    else if(hitStop) {reason=p.stop_reason??'stop loss';exit=sign===1?Math.min(open,stop):Math.max(open,stop);}
+    else if(hitTarget) {reason=p.target_reason??'take profit';exit=sign===1?Math.max(open,target):Math.min(open,target);}
     if(reason) {
       exit*=1-sign*c.slippage;
       const exitFee=p.qty*exit*c.fee_rate;
@@ -54,7 +57,8 @@ export function step(state, candle, mark, funding = []) {
       s.balance=liquidation?0:Math.max(0,s.balance+gross-exitFee);
       const net=s.balance-before-p.entry_fee-p.funding;
       const event={id:`main:${p.opened_at}`,run_id:'main',opened_at:iso(p.opened_at),closed_at:iso(time+60000),
-        side:p.side,entry:p.entry,exit,margin:p.margin,net_pnl:net,fees:p.entry_fee+exitFee,funding:p.funding,reason};
+        side:p.side,entry:p.entry,exit,margin:p.margin,net_pnl:net,fees:p.entry_fee+exitFee,funding:p.funding,reason,
+        strategy_version:p.strategy_version??2,fib:p.fib??null};
       events.push(event);s.closed++;if(net>0)s.wins++;
       s.total_fees+=exitFee;s.position=null;s.cooldown_until=time+60000+c.cooldown_minutes*60000;
     }
@@ -71,16 +75,19 @@ export function step(state, candle, mark, funding = []) {
       if(notional>=c.minimum_notional) {
         const side=nearLow?'long':'short', sign=nearLow?1:-1;
         const entry=close*(1+sign*c.slippage),qty=notional/entry,entryFee=notional*c.fee_rate;
-        s.balance-=entryFee;s.total_fees+=entryFee;
-        s.position={side,entry,qty,margin,entry_fee:entryFee,funding:0,opened_at:time+60000};
-        s.entries_today=entriesToday+1;
+        const plan=c.fib_enabled?fibonacciPlan(s.fib,side,entry,c):{};
+        if(plan) {
+          s.balance-=entryFee;s.total_fees+=entryFee;
+          s.position={side,entry,qty,margin,entry_fee:entryFee,funding:0,opened_at:time+60000,strategy_version:c.version,...plan};
+          s.entries_today=entriesToday+1;
+        }
       }
     }
   }
   const unrealized=s.position?(s.position.side==='long'?1:-1)*s.position.qty*(mark[4]-s.position.entry):0;
   s.equity=Math.max(0,s.balance+unrealized);
   s.peak=Math.max(s.peak,s.equity);s.max_drawdown=Math.max(s.max_drawdown,1-s.equity/s.peak);
-  s.phase=s.balance===0?'Account depleted':s.balance*c.allocation*c.leverage<c.minimum_notional&&!s.position?'Below minimum trade size':s.position?`${s.position.side==='long'?'Long':'Short'} position open`:hour<12?'Observing until 12:00 UTC':!ready?'Incomplete range · waiting for next UTC day':s.entries_today>=dailyLimit?'Daily entry limit reached':'Waiting near a range extreme';
+  s.phase=s.balance===0?'Account depleted':s.balance*c.allocation*c.leverage<c.minimum_notional&&!s.position?'Below minimum trade size':s.position?`${s.position.side==='long'?'Long':'Short'} position open`:hour<12?'Observing until 12:00 UTC':!ready?'Incomplete range · waiting for next UTC day':s.entries_today>=dailyLimit?'Daily entry limit reached':c.fib_enabled&&!s.fib?'Waiting for unambiguous hourly anchors':c.fib_enabled?'Waiting for range + Fibonacci confirmation':'Waiting near a range extreme';
   s.last_candle=time;
   return {state:s,events,sample:active?{run_id:'main',observed_at:iso(time+60000),equity:s.equity,price:close}:null};
 }

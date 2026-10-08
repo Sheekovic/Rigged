@@ -26,7 +26,12 @@ function render(state, trades, samples, updated) {
   const s = state, c = s.config;
   $('equity').textContent = money(s.equity);
   $('return').textContent = `${pct((s.equity/100-1)*100)} since $100 start`;
-  $('price').textContent = s.price ? money(s.price) : '—';
+  window.RIGGED_STATE=s;
+  if(!window.RIGGED_MARKET_LIVE) {
+    $('price').textContent = s.price ? money(s.price) : '—';
+    $('price-source').textContent='Supabase · last recorded futures close';
+  }
+  window.dispatchEvent(new CustomEvent('rigged-state',{detail:s}));
   $('win-rate').textContent = s.closed ? pct(s.wins/s.closed*100) : '—';
   $('trade-count').textContent = `${s.closed} closed trades · ${s.wins} wins`;
   $('drawdown').textContent = pct(s.max_drawdown*100);
@@ -35,7 +40,7 @@ function render(state, trades, samples, updated) {
   if(s.range && s.range.high > s.range.low) $('range-marker').style.left = `${Math.max(0,Math.min(100,(s.price-s.range.low)/(s.range.high-s.range.low)*100))}%`;
   $('phase').textContent = s.phase;
   $('position').textContent = s.position ? `${s.position.side.toUpperCase()} position open` : 'No position open.';
-  $('position-detail').textContent = s.position ? `Entry ${money(s.position.entry)} · Margin ${money(s.position.margin)} · Notional ${money(s.position.qty*s.position.entry)}` : '';
+  $('position-detail').textContent = s.position ? `Entry ${money(s.position.entry)} · Margin ${money(s.position.margin)} · Notional ${money(s.position.qty*s.position.entry)}${s.position.stop?` · Stop ${money(s.position.stop)} · Target ${money(s.position.target)}`:''}` : '';
   $('rules').textContent = `${c.margin_mode} · ${c.range_mode} · one position at a time · ${s.entries_today??0}/${c.max_daily_entries??6} entries today (UTC)`;
   $('assumptions').textContent = `Entry zone: ${pct(c.entry_tolerance*100)} from each extreme, within the observed range. Taker fee: ${pct(c.fee_rate*100)} each side of notional. Slippage: ${pct(c.slippage*100)} each fill. Maintenance margin assumption: ${pct(c.maintenance_rate*100)}. Historical funding is included. Targets use gross P&L / initial margin; net results deduct costs. ${c.margin_mode === 'cross' ? 'Cross collateral can lose more than the 10% allocation if a stop gaps.' : 'Isolated liquidation can occur before the intended −100% exit.'}`;
   $('started').textContent = `Started ${new Date(s.started_at).toLocaleString()}`;
@@ -51,7 +56,7 @@ function render(state, trades, samples, updated) {
     $('trades').replaceChildren();
     for(const t of trades) {
       const row = document.createElement('tr');
-      [new Date(t.closed_at).toISOString().replace('T',' ').slice(0,19),t.side.toUpperCase(),`${money(t.entry)} → ${money(t.exit)}`,money(t.margin),money(t.net_pnl),t.reason].forEach((value,i)=>{
+      [new Date(t.closed_at).toISOString().replace('T',' ').slice(0,19),t.side.toUpperCase(),`${money(t.entry)} → ${money(t.exit)}`,money(t.margin),money(t.net_pnl),t.reason,`v${t.strategy_version??2}`].forEach((value,i)=>{
         const cell=document.createElement('td');cell.textContent=value;
         if(i===4)cell.className=t.net_pnl>=0?'positive':'negative';row.append(cell);
       });
@@ -78,7 +83,7 @@ async function refresh() {
   } finally {setTimeout(refresh,Math.max(5,config.pollSeconds||15)*1000);}
 }
 $('export').addEventListener('click',()=>{
-  const keys=['closed_at','side','entry','exit','margin','net_pnl','fees','funding','reason'];
+  const keys=['closed_at','side','entry','exit','margin','net_pnl','fees','funding','reason','strategy_version'];
   const escape=(v)=>`"${String(v??'').replaceAll('"','""')}"`;
   const csv=[keys.join(','),...ledger.map(t=>keys.map(k=>escape(t[k])).join(','))].join('\r\n');
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
