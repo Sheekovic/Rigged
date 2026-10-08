@@ -1,5 +1,5 @@
 export const CONFIG = Object.freeze({
-  version: 1, margin_mode: 'cross', range_mode: '00:00–12:00 UTC', timezone: 'UTC',
+  version: 1, margin_mode: 'cross', range_mode: '00:00-12:00 UTC', timezone: 'UTC',
   leverage: 120, allocation: 0.1, target_roi: 2, stop_roi: -1,
   entry_tolerance: 0.001, fee_rate: 0.0005, slippage: 0.0001,
   maintenance_rate: 0.004, minimum_notional: 100, cooldown_minutes: 5,
